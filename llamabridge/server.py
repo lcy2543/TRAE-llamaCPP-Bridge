@@ -12,6 +12,7 @@ import json
 import re
 import socket
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 
@@ -153,27 +154,6 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     # ---------- 核心逻辑 ----------
-    def _ensure_model(self, body: dict) -> Optional[str]:
-        """根据请求中的 model 字段确保后端已加载对应模型，返回模型 ID"""
-        cfg = self.bridge.cfg
-        requested = str((body or {}).get("model") or "") if isinstance(body, dict) else ""
-        model_id = resolve_model_id(cfg, requested)
-        if not model_id:
-            self._send_json(503, {"error": {
-                "message": "没有已配置的模型，请先在管理界面添加模型",
-                "type": "no_model"}})
-            return None
-        if requested and requested != model_id:
-            self.bridge.log(f"[代理] 未知模型 ID '{requested}'，使用 '{model_id}'")
-        if not self.bridge.manager.ensure(model_id):
-            self._send_json(502, {"error": {
-                "message": f"模型 {model_id} 加载失败，请查看日志",
-                "type": "backend_error"}})
-            return None
-        if isinstance(body, dict):
-            body["model"] = model_id
-        return model_id
-
     def _inject_sampling(self, body: dict):
         """客户端（TRAE 等）未指定采样参数时，注入模型配置的官方推荐值。
 
@@ -199,26 +179,107 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": {"message": "请求体不是合法 JSON",
                                             "type": "invalid_request_error"}})
             return
-        if not self._ensure_model(body):
+        # 解析目标模型（不发错误，加载失败时按流式/非流式分别处理）
+        requested = str(body.get("model") or "")
+        model_id = resolve_model_id(self.bridge.cfg, requested)
+        if not model_id:
+            self._send_json(503, {"error": {
+                "message": "没有已配置的模型，请先在管理界面添加模型",
+                "type": "no_model"}})
             return
+        if requested and requested != model_id:
+            self.bridge.log(f"[代理] 未知模型 ID '{requested}'，使用 '{model_id}'")
+        body["model"] = model_id
         self._inject_sampling(body)
         strip = bool(self.bridge.cfg.global_.get("strip_think", True))
         stream = bool(body.get("stream"))
+        mgr = self.bridge.manager
+
+        # 模型未就绪：流式请求立即回 SSE 头并用心跳注释保活（防止客户端超时，
+        # TRAE 连通性测试超时后会报 "body cannot be replayed safely"）
+        need_load = not (mgr.active_model == model_id and mgr.backend_healthy())
+        sse_started = False
+        if need_load:
+            self.bridge.log(f"[代理] 模型 {model_id} 未加载，开始按需加载...")
+            loader = threading.Thread(target=mgr.ensure, args=(model_id,),
+                                      daemon=True)
+            loader.start()
+            if stream:
+                self._send_sse_headers()
+                sse_started = True
+                deadline = time.time() + 900
+                while loader.is_alive() and time.time() < deadline:
+                    try:
+                        self._write_chunked(b": model-loading\n\n")
+                    except (BrokenPipeError, ConnectionResetError):
+                        return  # 客户端已断开
+                    time.sleep(2)
+                if not (mgr.active_model == model_id and mgr.backend_healthy()):
+                    err = {"error": {"message": f"模型 {model_id} 加载失败，请查看日志",
+                                     "type": "backend_error"}}
+                    self._write_chunked(
+                        b"data: " + json.dumps(err, ensure_ascii=False).encode() + b"\n\n")
+                    self._write_chunked(b"data: [DONE]\n\n")
+                    self.wfile.write(b"0\r\n\r\n")
+                    return
+            else:
+                # 非流式：只能阻塞等待（建议先在管理界面预加载模型再测试连通性）
+                loader.join(timeout=900)
+                if not (mgr.active_model == model_id and mgr.backend_healthy()):
+                    self._send_json(502, {"error": {
+                        "message": f"模型 {model_id} 加载失败，请查看日志",
+                        "type": "backend_error"}})
+                    return
+
         try:
             upstream = requests.post(
                 self._backend_url(self.path.split("?")[0]),
                 json=body, stream=True, timeout=UPSTREAM_TIMEOUT)
         except requests.RequestException as e:
-            self._send_json(502, {"error": {"message": f"连接 llama-server 失败: {e}",
-                                            "type": "backend_error"}})
+            if sse_started:
+                err = {"error": {"message": f"连接 llama-server 失败: {e}",
+                                 "type": "backend_error"}}
+                try:
+                    self._write_chunked(
+                        b"data: " + json.dumps(err, ensure_ascii=False).encode() + b"\n\n")
+                    self._write_chunked(b"data: [DONE]\n\n")
+                    self.wfile.write(b"0\r\n\r\n")
+                except Exception:
+                    pass
+            else:
+                self._send_json(502, {"error": {
+                    "message": f"连接 llama-server 失败: {e}",
+                    "type": "backend_error"}})
             return
         if upstream.status_code != 200:
+            if sse_started:
+                try:
+                    err = {"error": {"message": "后端返回错误",
+                                     "type": "backend_error",
+                                     "upstream_status": upstream.status_code}}
+                    self._write_chunked(
+                        b"data: " + json.dumps(err, ensure_ascii=False).encode() + b"\n\n")
+                    self._write_chunked(b"data: [DONE]\n\n")
+                    self.wfile.write(b"0\r\n\r\n")
+                except Exception:
+                    pass
+                upstream.close()
+                return
             self._relay_error(upstream)
             return
         if stream:
-            self._relay_sse(upstream, strip)
+            self._relay_sse(upstream, strip, headers_sent=sse_started)
         else:
             self._relay_json(upstream, strip)
+
+    def _send_sse_headers(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
 
     def _relay_error(self, upstream):
         try:
@@ -257,15 +318,10 @@ class BridgeHandler(BaseHTTPRequestHandler):
         finally:
             upstream.close()
 
-    def _relay_sse(self, upstream, strip: bool):
+    def _relay_sse(self, upstream, strip: bool, headers_sent: bool = False):
         """流式：SSE 透传；开启 strip 时逐块清洗思考标签"""
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("Connection", "keep-alive")
-        self.send_header("X-Accel-Buffering", "no")
-        self.send_header("Transfer-Encoding", "chunked")
-        self.end_headers()
+        if not headers_sent:
+            self._send_sse_headers()
         try:
             if not strip:
                 # 纯字节透传，开销最小

@@ -319,6 +319,7 @@ class TraeConfigDialog(tk.Toplevel):
         ttk.Label(frm, foreground="#666", justify="left", text=(
             "说明：「完整 URL」开关保持关闭即可；模型展示名称随意；\n"
             "点击 TRAE「添加模型」会做一次连通性测试（消耗少量 token）。\n"
+            "建议先在本程序启动模型再点测试：模型未加载时测试需等待加载完成。\n"
             "切换本地模型只需在本程序操作，TRAE 无需改动。")).grid(
             row=9, column=0, columnspan=3, sticky="w", pady=(6, 0))
 

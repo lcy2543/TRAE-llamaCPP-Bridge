@@ -218,7 +218,12 @@ TRAE-llamaCPP-Bridge/
 **Q: 连通性测试失败 / 聊天无响应？**
 - 查看桥接程序日志窗口（或 `data/llama-server.log`）是否有报错
 - 确认模型已加载：状态栏应显示「模型已加载: xxx」
-- 首次请求会触发模型加载，大模型（如 15GB+）从磁盘加载可能需要 1~3 分钟，请耐心等待
+- 首次请求会触发模型加载，大模型（如 15GB+）从磁盘加载可能需要 1~3 分钟，请耐心等待；建议先在管理界面点「启动 / 切换模型」再点 TRAE 的连通性测试
+- 流式请求在模型加载期间会自动发送 SSE 心跳保活，不会超时；非流式请求只能阻塞等待
+
+**Q: TRAE 添加模型时报 "body cannot be replayed safely"？**
+- 多为连通性测试在模型加载完成前超时。解决：先在桥接程序启动模型（状态栏显示「模型已加载」），再回 TRAE 点「添加模型」
+- 若仍失败：打开任务管理器结束残留的 `llama-server` 进程（程序下次启动会自动清理或复用残留实例），然后重试
 
 **Q: 显存不够（CUDA OOM）？**
 - 调低模型配置中的「GPU 卸载层数」（ngl），让部分层走内存
@@ -459,7 +464,12 @@ TRAE-llamaCPP-Bridge/
 **Q: Connectivity test fails / no response in chat?**
 - Check the log panel (or `data/llama-server.log`) for errors
 - Confirm the model is loaded: the status bar should show "Model loaded: xxx"
-- The first request triggers model loading; large models (15GB+) can take 1–3 minutes to load from disk — be patient
+- The first request triggers model loading; large models (15GB+) can take 1–3 minutes to load from disk — be patient. Recommended: click "Start / Switch Model" in the bridge app BEFORE running TRAE's connectivity test
+- Streaming requests are kept alive with SSE heartbeats during model loading, so they never time out; non-streaming requests simply block until ready
+
+**Q: TRAE reports "body cannot be replayed safely" when adding a model?**
+- Usually the connectivity test timed out before the model finished loading. Fix: start the model in the bridge app first (status bar shows "Model loaded"), then click "Add Model" in TRAE
+- If it still fails: open Task Manager and kill leftover `llama-server` processes (the app now auto-cleans or reuses leftover instances on next start), then retry
 
 **Q: Out of VRAM (CUDA OOM)?**
 - Lower "GPU offload layers" (ngl) so some layers stay in system RAM

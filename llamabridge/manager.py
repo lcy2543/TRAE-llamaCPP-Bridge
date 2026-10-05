@@ -108,6 +108,50 @@ class ModelManager:
         except Exception:
             return False
 
+    def backend_props(self) -> dict | None:
+        """读取 llama-server /props（含 model_path 等），用于识别已运行实例加载的模型"""
+        try:
+            r = requests.get(
+                f"http://127.0.0.1:{self.cfg.global_['backend_port']}/props",
+                timeout=3)
+            return r.json() if r.status_code == 200 else None
+        except Exception:
+            return None
+
+    def backend_model_matches(self, model_path: str) -> bool:
+        """判断端口上已运行的 llama-server 是否加载了指定模型"""
+        props = self.backend_props()
+        if not props:
+            return False
+        import json as _json
+        blob = _json.dumps(props).lower()
+        return model_path.lower().replace("\\", "/") in blob.replace("\\", "/")
+
+    def _kill_orphan_backend(self):
+        """尽力终止占用内部端口的孤儿 llama-server（非本管理器启动的实例）"""
+        port = self.cfg.global_["backend_port"]
+        try:
+            if os.name == "nt":
+                out = subprocess.check_output(["netstat", "-ano"], text=True)
+                pids = {ln.split()[-1] for ln in out.splitlines()
+                        if f"127.0.0.1:{port}" in ln and "LISTENING" in ln}
+                for pid in pids:
+                    subprocess.run(["taskkill", "/F", "/PID", pid],
+                                   capture_output=True)
+                    self.log(f"[后端] 已终止占用端口 {port} 的进程 PID {pid}")
+            else:
+                out = subprocess.check_output(["ss", "-tlnp"], text=True,
+                                              stderr=subprocess.DEVNULL)
+                for ln in out.splitlines():
+                    if f":{port}" in ln:
+                        for tok in ln.split():
+                            if tok.startswith("pid="):
+                                subprocess.run(["kill", tok[4:]], capture_output=True)
+                                self.log(f"[后端] 已终止占用端口 {port} 的进程")
+            time.sleep(1)
+        except Exception as e:
+            self.log(f"[后端] 清理端口占用失败: {e}")
+
     def _wait_healthy(self) -> bool:
         deadline = time.time() + STARTUP_TIMEOUT
         while time.time() < deadline:
@@ -132,6 +176,15 @@ class ModelManager:
                     and self.proc.poll() is None and self.backend_healthy()):
                 return True
             self.stop()
+            # 处理非本管理器启动的实例（上次异常退出残留的孤儿 llama-server）
+            if self.backend_healthy() and (self.proc is None
+                                           or self.proc.poll() is not None):
+                if self.backend_model_matches(model["model_path"]):
+                    self.log(f"[后端] 检测到已运行的 llama-server 已加载 {model_id}，直接复用")
+                    self.active_model = model_id
+                    return True
+                self.log("[后端] 内部端口被残留的 llama-server 实例占用（模型不同），正在自动清理...")
+                self._kill_orphan_backend()
             try:
                 cmd = self._build_cmd(model)
             except FileNotFoundError as e:
