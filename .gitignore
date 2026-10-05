@@ -14,6 +14,9 @@ dist/data/
 # 模型文件（自行下载）
 *.gguf
 
+# llama.cpp 二进制发行包（自行下载）
+llama-b*/
+
 # 根目录 exe 副本（正式交付在 dist/ 中）
 /TRAE-llamaCPP-Bridge.exe
 

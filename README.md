@@ -230,6 +230,11 @@ TRAE-llamaCPP-Bridge/
 - 调小「上下文长度」
 - 使用量化程度更高的 GGUF 文件
 
+**Q: TRAE 报 "request (N tokens) exceeds the available context size"？**
+- TRAE 的系统提示词+对话历史很大（轻松超过 28K tokens），上下文长度需设得足够大
+- 建议 `ctx_size` ≥ 49152；同时在「额外参数」加 `--cache-type-k q8_0 --cache-type-v q8_0`（KV 缓存量化，长上下文显存近乎减半）和 `-np 1`（单用户无需并行槽位）
+- 实测 27B Q4 模型 + 49152 上下文 + q8_0 缓存 ≈ 21GB 显存
+
 **Q: 回复是空的 / 很久才开始回复？**
 - 思考型模型（Qwen3 系列等）会先输出长篇思考再回答；在模型配置里选「思考模式: 禁用(省token)」即可
 
@@ -475,6 +480,11 @@ TRAE-llamaCPP-Bridge/
 - Lower "GPU offload layers" (ngl) so some layers stay in system RAM
 - Reduce the context size
 - Use a more heavily quantized GGUF
+
+**Q: TRAE reports "request (N tokens) exceeds the available context size"?**
+- TRAE's system prompt + conversation history is huge (easily over 28K tokens); the context size must be large enough
+- Recommended `ctx_size` ≥ 49152; also add `--cache-type-k q8_0 --cache-type-v q8_0` (quantized KV cache, nearly halves cache VRAM) and `-np 1` (no parallel slots needed for a single user) to "Extra args"
+- Measured: 27B Q4 model + 49152 context + q8_0 cache ≈ 21GB VRAM
 
 **Q: Empty reply / very long wait before output?**
 - Reasoning models (Qwen3 family) produce long thinking traces first; set "Thinking mode: off" in the model configuration
