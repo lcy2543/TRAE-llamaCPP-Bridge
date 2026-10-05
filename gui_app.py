@@ -38,6 +38,13 @@ class App:
         self._build_statusbar()
         self._poll_log()
 
+        # 关键：启动时把已保存的模型配置加载进列表，否则界面显示为空
+        self.reload_models()
+        n = len(self.cfg.models)
+        self.log(f"[配置] 已加载 {n} 个已保存的模型"
+                 + (f"，默认模型: {self.cfg.global_.get('default_model')}"
+                    if self.cfg.global_.get("default_model") else ""))
+
         # 启动时自动开启代理
         if self.bridge.start():
             self.refresh_status()
@@ -171,7 +178,27 @@ class App:
         self.var_status.set(
             f"代理端口 {port}: {proxy}   |   {backend}   |   "
             f"TRAE API 地址: http://127.0.0.1:{port}/v1")
-        self.root.after(2000, self.refresh_status)
+        # 只启动一个周期刷新循环，避免 reload_models/启动流程重复调度
+        if not getattr(self, "_status_loop", False):
+            self._status_loop = True
+            self.root.after(2000, self._status_tick)
+
+    def _status_tick(self):
+        if not self.root.winfo_exists():
+            return
+        st = self.mgr.status()
+        port = self.cfg.global_["proxy_port"]
+        proxy = "运行中" if self.bridge.running else "已停止"
+        if st["running"] and st["healthy"]:
+            backend = f"模型已加载: {st['active_model']}"
+        elif st["running"]:
+            backend = "模型加载中…"
+        else:
+            backend = "后端未运行"
+        self.var_status.set(
+            f"代理端口 {port}: {proxy}   |   {backend}   |   "
+            f"TRAE API 地址: http://127.0.0.1:{port}/v1")
+        self.root.after(2000, self._status_tick)
 
     def start_model(self):
         mid = self.selected_id()
