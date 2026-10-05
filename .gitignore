@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.spec
+
+# PyInstaller exe（太大，不入库；用户可自行重新打包）
+TRAE-llamaCPP-Bridge.exe
+
+# 运行时数据
+data/config.json
+data/*.log
+data/test_image.png
+
+# 模型文件（自行下载）
+*.gguf
+
+# IDE / 系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
