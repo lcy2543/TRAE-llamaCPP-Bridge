@@ -253,7 +253,10 @@ class App:
             self.log("[配置] 全局设置已更新（代理端口重启程序后生效）")
 
     def show_help(self):
-        TraeConfigDialog(self.root, self.cfg)
+        # 优先显示正在运行的模型，其次显示列表中选中的模型
+        active = self.mgr.status().get("active_model") or ""
+        model_id = active or self.selected_id() or ""
+        TraeConfigDialog(self.root, self.cfg, model_id=model_id)
 
     def on_close(self):
         if messagebox.askyesno("退出", "退出程序并停止本地模型？"):
@@ -265,14 +268,14 @@ class App:
 class TraeConfigDialog(tk.Toplevel):
     """TRAE 配置速查对话框：每项参数一键复制到剪贴板"""
 
-    def __init__(self, parent, cfg: Config):
+    def __init__(self, parent, cfg: Config, model_id: str = ""):
         super().__init__(parent)
         self.title("TRAE 配置参数（点击「复制」即可粘贴到 TRAE）")
         self.resizable(False, False)
         self.grab_set()
         port = cfg.global_["proxy_port"]
-        default = cfg.global_.get("default_model") or ""
         host = get_lan_ip()
+        active = model_id or cfg.global_.get("default_model") or ""
 
         frm = ttk.Frame(self, padding=14)
         frm.pack(fill="both", expand=True)
@@ -284,7 +287,7 @@ class TraeConfigDialog(tk.Toplevel):
             ("API 格式", "OpenAI Chat Completions 格式", True),
             ("自定义请求地址", f"http://{host}:{port}/v1", False),
             ("（完整URL开启时用）", f"http://{host}:{port}/v1/chat/completions", False),
-            ("模型 ID", default or "（请先在本程序添加模型）", False),
+            ("模型 ID", active or "（请先在本程序添加模型）", False),
             ("API 密钥", "sk-local", False),
         ]
         self._values = []

@@ -219,12 +219,22 @@ def main():
         from llamabridge.server import get_lan_ip
         port = cfg.global_["proxy_port"]
         default = cfg.global_.get("default_model") or "(未设置默认模型)"
+        # 代理在跑时优先显示正在运行的模型
+        active = ""
+        try:
+            import requests
+            st = requests.get(f"http://127.0.0.1:{port}/bridge/status", timeout=2).json()
+            active = st.get("active_model") or ""
+        except Exception:
+            pass
+        model_id = active or default
         host = get_lan_ip()
         url = f"http://{host}:{port}/v1"
         print("在 TRAE 中：设置 → 模型 → 添加模型，填写以下参数：\n")
         print(f"  API 格式        OpenAI Chat Completions 格式")
         print(f"  自定义请求地址  {url}")
-        print(f"  模型 ID         {default}")
+        print(f"  模型 ID         {model_id}"
+              + ("（正在运行）" if active and active != default else ""))
         print(f"  API 密钥        sk-local (任意)")
         print(f"\n  注意：新版 TRAE 不允许 127.0.0.1/localhost，请使用上面的局域网 IP")
         print(f"  若开启「完整 URL」开关，请求地址改为: {url}/chat/completions")
