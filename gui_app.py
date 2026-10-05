@@ -69,6 +69,8 @@ class App:
         self.btn_start = ttk.Button(bar, text="启动 / 切换模型", command=self.start_model)
         self.btn_start.pack(side="left")
         ttk.Button(bar, text="停止模型", command=self.stop_model).pack(side="left", padx=(8, 0))
+        ttk.Button(bar, text="TRAE 参数(一键复制)", command=self.show_help).pack(
+            side="left", padx=(8, 0))
         ttk.Button(bar, text="添加模型", command=self.add_model).pack(side="left", padx=(8, 0))
         ttk.Button(bar, text="编辑", command=self.edit_model).pack(side="left", padx=(8, 0))
         ttk.Button(bar, text="删除", command=self.remove_model).pack(side="left", padx=(8, 0))
@@ -224,26 +226,87 @@ class App:
             self.log("[配置] 全局设置已更新（代理端口重启程序后生效）")
 
     def show_help(self):
-        port = self.cfg.global_["proxy_port"]
-        default = self.cfg.global_.get("default_model") or "（先添加模型）"
-        messagebox.showinfo(
-            "TRAE 配置说明",
-            "在 TRAE 中：设置 → 模型 → 添加模型\n\n"
-            f"1. API 格式: OpenAI Chat Completions 格式\n"
-            f"2. 完整 URL 开关: 关闭\n"
-            f"3. 自定义请求地址: http://127.0.0.1:{port}/v1\n"
-            f"   （若开启「完整 URL」开关，则填 http://127.0.0.1:{port}/v1/chat/completions）\n"
-            f"4. 模型 ID: {default}\n"
-            f"5. API 密钥: 任意填写，如 sk-local\n\n"
-            f"点击「添加模型」，连通性测试通过即可使用。\n"
-            f"切换模型：在本程序列表选中另一模型 → 点击「启动 / 切换模型」，"
-            f"TRAE 无需改动。")
+        TraeConfigDialog(self.root, self.cfg)
 
     def on_close(self):
         if messagebox.askyesno("退出", "退出程序并停止本地模型？"):
             self.mgr.stop()
             self.bridge.stop()
             self.root.destroy()
+
+
+class TraeConfigDialog(tk.Toplevel):
+    """TRAE 配置速查对话框：每项参数一键复制到剪贴板"""
+
+    def __init__(self, parent, cfg: Config):
+        super().__init__(parent)
+        self.title("TRAE 配置参数（点击「复制」即可粘贴到 TRAE）")
+        self.resizable(False, False)
+        self.grab_set()
+        port = cfg.global_["proxy_port"]
+        default = cfg.global_.get("default_model") or ""
+
+        frm = ttk.Frame(self, padding=14)
+        frm.pack(fill="both", expand=True)
+        ttk.Label(frm, text="TRAE 中：设置 → 模型 → 添加模型，然后逐项复制粘贴：",
+                  font=("", 10, "bold")).grid(row=0, column=0, columnspan=3,
+                                              sticky="w", pady=(0, 10))
+
+        rows = [
+            ("API 格式", "OpenAI Chat Completions 格式", True),
+            ("自定义请求地址", f"http://127.0.0.1:{port}/v1", False),
+            ("（完整URL开启时用）", f"http://127.0.0.1:{port}/v1/chat/completions", False),
+            ("模型 ID", default or "（请先在本程序添加模型）", False),
+            ("API 密钥", "sk-local", False),
+        ]
+        self._values = []
+        for i, (label, value, selectable) in enumerate(rows, start=1):
+            ttk.Label(frm, text=label + "：").grid(row=i, column=0, sticky="w", pady=4)
+            var = tk.StringVar(value=value)
+            self._values.append(var)
+            if selectable:
+                ttk.Label(frm, textvariable=var, foreground="#0a6").grid(
+                    row=i, column=1, sticky="w", padx=(0, 12))
+            else:
+                ent = ttk.Entry(frm, textvariable=var, width=48)
+                ent.grid(row=i, column=1, sticky="we", padx=(0, 12))
+                if not value:
+                    ent.state(["disabled"])
+            ttk.Button(frm, text="复制", width=6,
+                       command=lambda v=var: self._copy(v)).grid(
+                row=i, column=2, pady=2)
+
+        ttk.Separator(frm).grid(row=6, column=0, columnspan=3, sticky="we", pady=10)
+        ttk.Button(frm, text="一键复制全部（含换行，逐行粘贴）",
+                   command=self._copy_all).grid(row=7, column=0, columnspan=3,
+                                                sticky="we", pady=(0, 6))
+        ttk.Label(frm, foreground="#666", justify="left", text=(
+            "说明：「完整 URL」开关保持关闭即可；模型展示名称随意；\n"
+            "点击 TRAE「添加模型」会做一次连通性测试（消耗少量 token）。\n"
+            "切换本地模型只需在本程序操作，TRAE 无需改动。")).grid(
+            row=8, column=0, columnspan=3, sticky="w")
+
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def _copy(self, var: tk.StringVar):
+        value = var.get()
+        if not value or value.startswith("（"):
+            return
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update()  # 确保剪贴板在窗口关闭后仍可用
+        self.title("TRAE 配置参数 —— 已复制到剪贴板 ✓")
+        self.after(1500, lambda: self.title(
+            "TRAE 配置参数（点击「复制」即可粘贴到 TRAE）"))
+
+    def _copy_all(self):
+        lines = [v.get() for v in self._values if v.get()]
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(lines))
+        self.update()
+        self.title("TRAE 配置参数 —— 全部参数已复制 ✓")
+        self.after(1500, lambda: self.title(
+            "TRAE 配置参数（点击「复制」即可粘贴到 TRAE）"))
 
 
 class ModelDialog(tk.Toplevel):

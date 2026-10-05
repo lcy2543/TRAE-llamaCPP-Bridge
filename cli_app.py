@@ -51,6 +51,8 @@ def build_parser():
 
     sub.add_parser("stop", help="停止 llama-server")
     sub.add_parser("status", help="查看运行状态")
+    sub.add_parser("trae", help="打印 TRAE 需要填写的参数（--copy 同时写入剪贴板）").add_argument(
+        "--copy", action="store_true", help="把 API 地址复制到剪贴板")
 
     sp = sub.add_parser("set", help="修改全局设置")
     sp.add_argument("--proxy-port", type=int)
@@ -197,6 +199,29 @@ def main():
             print("已停止 llama-server")
         except Exception as e:
             print(f"停止失败: {e}")
+    elif a.cmd == "trae":
+        port = cfg.global_["proxy_port"]
+        default = cfg.global_.get("default_model") or "(未设置默认模型)"
+        url = f"http://127.0.0.1:{port}/v1"
+        print("在 TRAE 中：设置 → 模型 → 添加模型，填写以下参数：\n")
+        print(f"  API 格式        OpenAI Chat Completions 格式")
+        print(f"  自定义请求地址  {url}")
+        print(f"  模型 ID         {default}")
+        print(f"  API 密钥        sk-local (任意)")
+        print(f"\n  若开启「完整 URL」开关，请求地址改为: {url}/chat/completions")
+        if getattr(a, "copy", False):
+            try:
+                import subprocess
+                if sys.platform == "win32":
+                    subprocess.run(["clip"], input=url.encode(), check=True)
+                elif sys.platform == "darwin":
+                    subprocess.run(["pbcopy"], input=url.encode(), check=True)
+                else:
+                    subprocess.run(["xclip", "-selection", "clipboard"],
+                                   input=url.encode(), check=True)
+                print(f"\n已复制到剪贴板: {url}")
+            except Exception as e:
+                print(f"\n复制失败（{e}），请手动复制上面的地址")
     elif a.cmd == "status":
         import requests
         port = cfg.global_["proxy_port"]

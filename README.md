@@ -63,11 +63,17 @@ TRAE ──OpenAI 格式──> Python 代理 (127.0.0.1:8800) ──转发─�
 
 ### 方式 A：exe 一键版（推荐）
 
-双击 **`TRAE-llamaCPP-Bridge.exe`**（约 13MB，无需安装 Python，已内置全部依赖）。
+从本仓库 **`dist/TRAE-llamaCPP-Bridge.exe`**（约 13MB）直接下载，**无需安装 Python**，已内置全部依赖，下载后双击即可运行。
 
 - exe 与其配置（`data\` 文件夹）始终在一起：把 exe 放到哪里，`data\config.json` 与日志就在哪里生成
-- 若把 exe 放在本项目根目录，会直接沿用 `data\config.json` 中已有的模型配置
-- llama-server 的自动探测同样有效：把 exe 与 llama.cpp 发行包（如 `llama-bXXXX-bin-win-cuda-x.x-x64`）放在同一目录即可
+- llama-server 的自动探测同样有效：把 exe 与 llama.cpp 发行包（如 `llama-bXXXX-bin-win-cuda-x.x-x64`）放在同一目录即可被自动找到
+- 首次运行如遇 Windows SmartScreen 提示，选择「更多信息 → 仍要运行」（PyInstaller 单文件 exe 的常见误报）
+- 若你自行修改了源码，可用以下命令重新打包：
+
+```bash
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bridge gui_app.py
+```
 
 ### 方式 B：源码运行
 
@@ -185,26 +191,19 @@ llama-server 查找顺序：`set --llama-server` 指定 > 环境变量 `LLAMA_SE
 
 ```
 TRAE-llamaCPP-Bridge/
-├── TRAE-llamaCPP-Bridge.exe  # Windows 图形界面（PyInstaller 打包，免 Python）
+├── dist/
+│   └── TRAE-llamaCPP-Bridge.exe  # Windows 图形界面（可直接下载使用，免 Python）
 ├── Start-Win.bat          # Windows 源码一键启动（GUI，需 Python）
 ├── start-linux.sh         # Linux 一键启动（CLI）
 ├── gui_app.py             # Windows 图形界面（源码）
 ├── cli_app.py             # 命令行界面（Linux/Win 通用）
 ├── requirements.txt       # 仅依赖 requests
-├── dist/                  # PyInstaller 输出目录（exe 在此生成）
 ├── llamabridge/
 │   ├── config.py          # 配置管理（data/config.json）
 │   ├── manager.py         # llama-server 进程管理
 │   └── server.py          # OpenAI 兼容代理（SSE 流式透传）
 └── data/                  # 运行时生成：配置、日志、测试脚本
     └── e2e_test.py        # 端到端自测脚本（需先启动服务）
-```
-
-重新打包 exe（修改源码后）：
-
-```bash
-python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bridge gui_app.py
 ```
 
 ## 六、常见问题
@@ -298,11 +297,17 @@ TRAE ──OpenAI format──> Python proxy (127.0.0.1:8800) ──forward─�
 
 ### Option A: Standalone exe (recommended)
 
-Double-click **`TRAE-llamaCPP-Bridge.exe`** (~13MB, no Python required, all dependencies bundled).
+Download **`dist/TRAE-llamaCPP-Bridge.exe`** (~13MB) directly from this repository — **no Python required**, all dependencies bundled. Just download and double-click to run.
 
 - The exe and its configuration (`data\` folder) stay together: wherever you put the exe, `data\config.json` and logs are created there
-- Placed in the project root, the exe reuses the existing `data\config.json` model configuration
 - Auto-detection of llama-server works the same: put the exe in the same folder as your llama.cpp release (e.g. `llama-bXXXX-bin-win-cuda-x.x-x64`)
+- If Windows SmartScreen warns on first run, choose "More info → Run anyway" (a common false positive for PyInstaller onefile executables)
+- If you modify the source, rebuild the exe with:
+
+```bash
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bridge gui_app.py
+```
 
 ### Option B: Run from source
 
@@ -420,26 +425,19 @@ Notes:
 
 ```
 TRAE-llamaCPP-Bridge/
-├── TRAE-llamaCPP-Bridge.exe  # Windows GUI (PyInstaller build, no Python needed)
+├── dist/
+│   └── TRAE-llamaCPP-Bridge.exe  # Windows GUI (download & run, no Python needed)
 ├── Start-Win.bat          # Windows one-click launcher for source (GUI, needs Python)
 ├── start-linux.sh         # Linux one-click launcher (CLI)
 ├── gui_app.py             # Windows GUI (source)
 ├── cli_app.py             # CLI (Linux/Windows)
 ├── requirements.txt       # Only depends on requests
-├── dist/                  # PyInstaller output directory
 ├── llamabridge/
 │   ├── config.py          # Configuration (data/config.json)
 │   ├── manager.py         # llama-server process management
 │   └── server.py          # OpenAI-compatible proxy (SSE streaming passthrough)
 └── data/                  # Generated at runtime: config, logs, tests
     └── e2e_test.py        # End-to-end test script (requires the service running)
-```
-
-Rebuild the exe (after modifying source):
-
-```bash
-python -m pip install pyinstaller
-python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bridge gui_app.py
 ```
 
 ## 6. FAQ
