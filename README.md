@@ -110,9 +110,16 @@ python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bri
 | GPU 卸载层数 | 999 | 999 = 全部层进显存；显存不足时逐层下调（如 40、20），剩余层走内存 |
 | CPU 线程 | -1 | -1 = 自动；纯 CPU 推理时可设为物理核心数 |
 | Flash Attention | auto | auto/on 可显著降低长上下文的显存占用 |
-| 思考模式 | 模型默认 | 选「禁用(省token)」后思考型模型直接输出答案，不再生成思考过程 |
+| 思考模式 | 模型默认 | 三档：模型默认 / 限制思考预算 / 禁用。Qwen 官方建议预算 ≥1024 才有实质收益 |
+| 思考预算 | 4096 | 思考 token 上限（`--reasoning-budget`），防止思考失控空耗 token |
+| temperature | 0.6 | **Qwen 官方推荐**：思考模式 0.6，非思考模式 0.7。官方明确禁止贪心解码（会导致无限重复） |
+| top_p | 0.95 | **Qwen 官方推荐**：思考模式 0.95，非思考模式 0.8 |
+| top_k | 20 | Qwen 官方推荐值 |
 | Jinja 工具调用 | 关 | 勾选后传 `--jinja`，支持 OpenAI 风格 function calling（TRAE Agent 模式需要） |
-| 额外参数 | 空 | 直接追加到 llama-server 命令行，如 `--mlock --cache-type-k q8_0` |
+| 额外参数 | 空 | 直接追加到 llama-server 命令行，如 `--cache-type-k q8_0 --cache-type-v q8_0`（KV 缓存量化，长上下文省一半显存） |
+
+> 采样参数（temperature/top_p/top_k）在 TRAE 等客户端**未主动指定**时自动注入请求；客户端自带参数时优先使用客户端的。
+> 以上推荐值来自 [Qwen 官方文档](https://qwen.readthedocs.io/en/stable/getting_started/quickstart.html)（Quickstart → Best Practices）。
 
 ## 三、Linux 使用（命令行）
 
@@ -344,9 +351,16 @@ python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bri
 | GPU offload layers | 999 | 999 = all layers in VRAM; decrease gradually (e.g. 40, 20) if OOM — remaining layers stay in RAM |
 | CPU threads | -1 | -1 = auto; set to physical core count for CPU-only inference |
 | Flash Attention | auto | auto/on significantly reduces VRAM for long contexts |
-| Thinking mode | model default | Choose "off" to make reasoning models answer directly without a thinking phase |
+| Thinking mode | model default | Three levels: model default / thinking budget / disabled. Qwen officially recommends budget ≥1024 for meaningful gains |
+| Thinking budget | 4096 | Max thinking tokens (`--reasoning-budget`); prevents runaway thinking |
+| temperature | 0.6 | **Official Qwen recommendation**: 0.6 for thinking mode, 0.7 for non-thinking. Greedy decoding is explicitly forbidden (causes endless repetition) |
+| top_p | 0.95 | **Official Qwen recommendation**: 0.95 for thinking mode, 0.8 for non-thinking |
+| top_k | 20 | Official Qwen recommendation |
 | Jinja tool calls | off | Passes `--jinja` for OpenAI-style function calling (needed by TRAE Agent mode) |
-| Extra args | empty | Appended to the llama-server command line, e.g. `--mlock --cache-type-k q8_0` |
+| Extra args | empty | Appended to the llama-server command line, e.g. `--cache-type-k q8_0 --cache-type-v q8_0` (quantized KV cache, halves cache VRAM for long contexts) |
+
+> Sampling params (temperature/top_p/top_k) are injected automatically only when the client (TRAE etc.) does not specify them; client-provided values always take precedence.
+> Recommendations are from the [official Qwen docs](https://qwen.readthedocs.io/en/stable/getting_started/quickstart.html) (Quickstart → Best Practices).
 
 ## 3. Linux Usage (CLI)
 

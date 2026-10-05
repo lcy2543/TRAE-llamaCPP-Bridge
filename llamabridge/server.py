@@ -174,6 +174,23 @@ class BridgeHandler(BaseHTTPRequestHandler):
             body["model"] = model_id
         return model_id
 
+    def _inject_sampling(self, body: dict):
+        """客户端（TRAE 等）未指定采样参数时，注入模型配置的官方推荐值。
+
+        Qwen 官方建议：思考模式 temperature=0.6 / top_p=0.95 / top_k=20；
+        非思考模式 temperature=0.7 / top_p=0.8。禁止贪心解码，否则可能无限重复。
+        """
+        try:
+            model = self.bridge.cfg.get_model(str(body.get("model") or ""))
+            if not model:
+                return
+            for key in ("temperature", "top_p", "top_k"):
+                val = model.get(key)
+                if val is not None and key not in body:
+                    body[key] = val
+        except Exception:
+            pass
+
     def _handle_chat(self):
         raw = self._read_body()
         try:
@@ -184,6 +201,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
         if not self._ensure_model(body):
             return
+        self._inject_sampling(body)
         strip = bool(self.bridge.cfg.global_.get("strip_think", True))
         stream = bool(body.get("stream"))
         try:

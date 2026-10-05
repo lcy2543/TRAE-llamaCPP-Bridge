@@ -34,8 +34,13 @@ DEFAULT_MODEL = {
     "ngl": 999,                  # GPU 卸载层数（999=全部卸载到显卡）
     "threads": -1,               # CPU 线程数，-1=自动
     "flash_attn": "auto",        # on / off / auto，auto 或 on 可省显存
-    "reasoning": "auto",         # auto=模型默认思考行为；off=禁用思考（--reasoning-budget 0）
+    "reasoning": "auto",         # auto=模型默认思考；off=禁用思考；budget=用思考预算
+    "reasoning_budget": 4096,    # 思考 token 上限（reasoning=budget 时生效；官方建议>=1024）
     "jinja": False,              # --jinja 启用工具调用模板（Agent 模式需要）
+    # 采样参数（Qwen 官方推荐；请求未指定时注入）
+    "temperature": 0.6,          # 思考模式官方推荐 0.6（非思考模式推荐 0.7）
+    "top_p": 0.95,               # 思考模式官方推荐 0.95（非思考模式推荐 0.8）
+    "top_k": 20,                 # 官方推荐 20
     "extra_args": "",            # 额外命令行参数
 }
 

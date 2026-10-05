@@ -408,14 +408,41 @@ class ModelDialog(tk.Toplevel):
         ttk.Label(opts, text="Flash Attention:").pack(side="left")
         for v in ("auto", "on", "off"):
             ttk.Radiobutton(opts, text=v, value=v, variable=self.var_fa).pack(side="left")
-        self.var_reasoning = tk.StringVar(value=m.get("reasoning", "auto"))
-        ttk.Label(opts, text="  思考模式:").pack(side="left")
-        for v, txt in (("auto", "模型默认"), ("off", "禁用(省token)")):
-            ttk.Radiobutton(opts, text=txt, value=v,
-                            variable=self.var_reasoning).pack(side="left")
         self.var_jinja = tk.BooleanVar(value=bool(m.get("jinja")))
         ttk.Checkbutton(opts, text="Jinja 工具调用 (--jinja)",
                         variable=self.var_jinja).pack(side="left", padx=(16, 0))
+
+        r += 1
+        think = ttk.Frame(frm)
+        think.grid(row=r, column=0, columnspan=3, sticky="w", pady=3)
+        ttk.Label(think, text="思考模式:").pack(side="left")
+        self.var_reasoning = tk.StringVar(value=m.get("reasoning", "auto"))
+        for v, txt in (("auto", "模型默认"),
+                       ("budget", "限制思考预算"),
+                       ("off", "禁用(省token)")):
+            ttk.Radiobutton(think, text=txt, value=v,
+                            variable=self.var_reasoning).pack(side="left")
+        self.sp_budget = tk.IntVar(value=m.get("reasoning_budget", 4096))
+        ttk.Label(think, text=" 预算(token,官方建议≥1024):").pack(side="left")
+        ttk.Spinbox(think, from_=0, to=131072, increment=512, width=8,
+                    textvariable=self.sp_budget).pack(side="left", padx=4)
+
+        r += 1
+        samp = ttk.Frame(frm)
+        samp.grid(row=r, column=0, columnspan=3, sticky="w", pady=3)
+        ttk.Label(samp, text="采样参数(Qwen官方推荐，请求未指定时注入):").pack(side="left")
+        ttk.Label(samp, text="  temperature").pack(side="left")
+        self.sp_temp = tk.DoubleVar(value=m.get("temperature", 0.6))
+        ttk.Spinbox(samp, from_=0.0, to=2.0, increment=0.05, width=5,
+                    textvariable=self.sp_temp).pack(side="left", padx=(2, 12))
+        ttk.Label(samp, text="top_p").pack(side="left")
+        self.sp_topp = tk.DoubleVar(value=m.get("top_p", 0.95))
+        ttk.Spinbox(samp, from_=0.0, to=1.0, increment=0.05, width=5,
+                    textvariable=self.sp_topp).pack(side="left", padx=(2, 12))
+        ttk.Label(samp, text="top_k").pack(side="left")
+        self.sp_topk = tk.IntVar(value=m.get("top_k", 20))
+        ttk.Spinbox(samp, from_=0, to=100, increment=1, width=5,
+                    textvariable=self.sp_topk).pack(side="left", padx=2)
 
         r += 1
         ttk.Label(frm, text="额外参数").grid(row=r, column=0, sticky="w", pady=3)
@@ -463,6 +490,10 @@ class ModelDialog(tk.Toplevel):
             "threads": int(self.sp_threads.get()),
             "flash_attn": self.var_fa.get(),
             "reasoning": self.var_reasoning.get(),
+            "reasoning_budget": int(self.sp_budget.get()),
+            "temperature": round(float(self.sp_temp.get()), 2),
+            "top_p": round(float(self.sp_topp.get()), 2),
+            "top_k": int(self.sp_topk.get()),
             "jinja": bool(self.var_jinja.get()),
             "extra_args": self.ent_extra.get().strip(),
         }

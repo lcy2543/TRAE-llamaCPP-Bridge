@@ -34,6 +34,14 @@ def build_parser():
     sp.add_argument("-fa", "--flash-attn", default="auto", choices=["on", "off", "auto"])
     sp.add_argument("--no-think", action="store_true",
                     help="禁用思考模式（--reasoning-budget 0，节省 token）")
+    sp.add_argument("--think-budget", type=int, default=0,
+                    help="思考 token 上限（官方建议≥1024；0=不限制）")
+    sp.add_argument("--temp", type=float, default=0.6,
+                    help="temperature，Qwen 官方推荐思考模式 0.6 / 非思考 0.7")
+    sp.add_argument("--top-p", type=float, default=0.95,
+                    help="top_p，Qwen 官方推荐思考模式 0.95 / 非思考 0.8")
+    sp.add_argument("--top-k", type=int, default=20,
+                    help="top_k，Qwen 官方推荐 20")
     sp.add_argument("--jinja", action="store_true", help="启用 --jinja（工具调用模板）")
     sp.add_argument("--extra", default="", help="额外 llama-server 参数")
     sp.add_argument("--default", action="store_true", help="设为默认模型")
@@ -74,7 +82,12 @@ def cmd_add(cfg: Config, a):
         "ngl": a.ngl,
         "threads": a.threads,
         "flash_attn": a.flash_attn,
-        "reasoning": "off" if a.no_think else "auto",
+        "reasoning": ("off" if a.no_think
+                      else ("budget" if a.think_budget > 0 else "auto")),
+        "reasoning_budget": a.think_budget or 4096,
+        "temperature": a.temp,
+        "top_p": a.top_p,
+        "top_k": a.top_k,
         "jinja": a.jinja,
         "extra_args": a.extra,
     })

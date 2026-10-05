@@ -82,8 +82,15 @@ class ModelManager:
             cmd += ["-fa", fa]
         if model.get("mmproj_path"):
             cmd += ["--mmproj", model["mmproj_path"]]
-        if model.get("reasoning") == "off":
+        # 思考模式控制（Qwen/llama.cpp 官方语义）
+        # off: --reasoning-budget 0 硬关闭；budget: --reasoning-budget N 限制思考 token
+        reasoning = model.get("reasoning", "auto")
+        if reasoning == "off":
             cmd += ["--reasoning-budget", "0"]
+        elif reasoning == "budget":
+            budget = int(model.get("reasoning_budget", 4096) or 4096)
+            if budget > 0:
+                cmd += ["--reasoning-budget", str(budget)]
         if model.get("jinja"):
             cmd += ["--jinja"]
         extra = (model.get("extra_args") or "").strip()
