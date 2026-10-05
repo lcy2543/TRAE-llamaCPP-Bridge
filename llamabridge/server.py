@@ -140,8 +140,16 @@ class BridgeHandler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path in ("/v1/chat/completions", "/v1/responses"):
             self._handle_chat()
-        else:
-            self._forward("POST")
+            return
+        # 智能路由：TRAE 开启「完整 URL」后填了基址（如 .../v1 或 .../），
+        # 会把基址当端点直接请求 → 此类路径自动改路由到 /v1/chat/completions
+        normalized = path.rstrip("/")
+        if normalized in ("", "/v1", "/chat", "/api", "/api/v1", "/openai", "/v1/chat"):
+            if self.headers.get("Content-Type", "").startswith("application/json"):
+                self.path = "/v1/chat/completions"
+                self._handle_chat()
+                return
+        self._forward("POST")
 
     def do_DELETE(self):
         self._forward("DELETE")

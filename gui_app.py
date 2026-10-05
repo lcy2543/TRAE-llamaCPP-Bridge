@@ -317,7 +317,8 @@ class TraeConfigDialog(tk.Toplevel):
             "若 IP 变化（如切换 Wi-Fi），请重新打开本对话框获取新地址。")).grid(
             row=8, column=0, columnspan=3, sticky="w")
         ttk.Label(frm, foreground="#666", justify="left", text=(
-            "说明：「完整 URL」开关保持关闭即可；模型展示名称随意；\n"
+            "说明：「完整 URL」开关建议保持关闭（关闭时填 http://IP:端口/v1 即可）；\n"
+            "若开启该开关，必须填完整端点 http://IP:端口/v1/chat/completions。\n"
             "点击 TRAE「添加模型」会做一次连通性测试（消耗少量 token）。\n"
             "建议先在本程序启动模型再点测试：模型未加载时测试需等待加载完成。\n"
             "切换本地模型只需在本程序操作，TRAE 无需改动。")).grid(
