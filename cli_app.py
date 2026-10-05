@@ -45,6 +45,11 @@ def build_parser():
     sp.add_argument("--jinja", action="store_true", help="启用 --jinja（工具调用模板）")
     sp.add_argument("--extra", default="", help="额外 llama-server 参数")
     sp.add_argument("--default", action="store_true", help="设为默认模型")
+    sp.add_argument("--auto", action="store_true",
+                    help="按显存智能优化（自动调整 ctx/ngl/KV 缓存量化；"
+                         "官方预设参数默认已自动套用）")
+    sp.add_argument("--no-preset", action="store_true",
+                    help="不按官方文档自动套用预设参数")
 
     sub.add_parser("list", help="列出已配置模型")
 
@@ -74,7 +79,7 @@ def build_parser():
 
 
 def cmd_add(cfg: Config, a):
-    cfg.upsert_model({
+    model = {
         "id": a.id,
         "model_path": a.model,
         "mmproj_path": a.mmproj,
@@ -90,7 +95,28 @@ def cmd_add(cfg: Config, a):
         "top_k": a.top_k,
         "jinja": a.jinja,
         "extra_args": a.extra,
-    })
+    }
+
+    # 1) 按官方文档自动套用预设参数（识别文件名中的模型家族）
+    if not getattr(a, "no_preset", False):
+        from llamabridge.presets import detect_preset
+        preset, _ = detect_preset(a.model)
+        if preset:
+            for k in ("temperature", "top_p", "top_k", "jinja",
+                      "reasoning", "reasoning_budget"):
+                if preset.get(k) is not None:
+                    model[k] = preset[k]
+            print(f"已按官方文档套用 {preset['family']} 预设参数"
+                  f"（来源: {preset['source']}）")
+
+    # 2) 按显存智能优化（--auto）
+    if getattr(a, "auto", False):
+        from llamabridge.presets import auto_optimize
+        rec, note = auto_optimize(model)
+        model.update(rec)
+        print(f"显存智能优化: {note}")
+
+    cfg.upsert_model(model)
     if a.default:
         cfg.global_["default_model"] = a.id
         cfg.save()

@@ -358,9 +358,18 @@ class ModelDialog(tk.Toplevel):
         self.resizable(False, False)
         self.grab_set()
         m = model or {}
+        self._is_new = model is None
 
         frm = ttk.Frame(self, padding=12)
         frm.pack(fill="both", expand=True)
+
+        # 顶部：智能优化提示区（选文件后自动填）
+        self.var_hint = tk.StringVar(value=(
+            "新手提示：选好 GGUF 文件后，程序会按官方文档自动填参数；"
+            "再点「按显存智能优化」即可"))
+        ttk.Label(frm, textvariable=self.var_hint, foreground="#0a6",
+                  wraplength=560, justify="left").grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=(0, 8))
 
         def row(label, r):
             ttk.Label(frm, text=label).grid(row=r, column=0, sticky="w", pady=3, padx=(0, 8))
@@ -458,18 +467,98 @@ class ModelDialog(tk.Toplevel):
         btns = ttk.Frame(frm)
         btns.grid(row=r + 1, column=0, columnspan=3, pady=(10, 0))
         ttk.Button(btns, text="保存", command=self._save).pack(side="left", padx=4)
+        ttk.Button(btns, text="按显存智能优化", command=self._smart_optimize).pack(
+            side="left", padx=4)
         ttk.Button(btns, text="取消", command=self.destroy).pack(side="left", padx=4)
 
         self.wait_window()
+
+    # ---------- 智能预设 / 优化 ----------
+    def _current_form_model(self) -> dict:
+        """把当前表单值收集成模型 dict（供预设/优化逻辑读取）"""
+        return {
+            "id": self.ent_id.get().strip(),
+            "model_path": self.ent_model.get().strip(),
+            "mmproj_path": self.ent_mmproj.get().strip(),
+        }
+
+    def _apply_to_form(self, params: dict):
+        """把预设/优化参数写回表单控件"""
+        if "ctx_size" in params:
+            self.sp_ctx.set(params["ctx_size"])
+        if "ngl" in params:
+            self.sp_ngl.set(params["ngl"])
+        if "flash_attn" in params:
+            self.var_fa.set(params["flash_attn"])
+        if "reasoning" in params:
+            self.var_reasoning.set(params["reasoning"])
+        if "reasoning_budget" in params:
+            self.sp_budget.set(params["reasoning_budget"])
+        if "temperature" in params:
+            self.sp_temp.set(params["temperature"])
+        if "top_p" in params:
+            self.sp_topp.set(params["top_p"])
+        if "top_k" in params:
+            self.sp_topk.set(params["top_k"])
+        if "jinja" in params:
+            self.var_jinja.set(bool(params["jinja"]))
+        if "extra_args" in params:
+            self.ent_extra.delete(0, "end")
+            self.ent_extra.insert(0, params["extra_args"])
+
+    def _auto_preset(self):
+        """选完主模型文件后：按官方文档自动填参数"""
+        path = self.ent_model.get().strip()
+        if not path:
+            return
+        from llamabridge.presets import detect_preset
+        preset, _ = detect_preset(path)
+        if preset:
+            self._apply_to_form({k: preset[k] for k in
+                                 ("temperature", "top_p", "top_k", "jinja",
+                                  "reasoning", "reasoning_budget") if preset.get(k) is not None})
+            self.var_hint.set(
+                f"已识别 {preset['family']}，按官方文档自动填好参数（{preset['source']}）。"
+                f"再点「按显存智能优化」完成配置！")
+        else:
+            self.var_hint.set("未识别出模型家族，已使用通用参数；"
+                              "可手动调整后点「按显存智能优化」")
+
+    def _smart_optimize(self):
+        """按显存大小自动优化 ctx/ngl/KV 缓存量化"""
+        path = self.ent_model.get().strip()
+        if not path:
+            messagebox.showwarning("提示", "请先选择 GGUF 模型文件", parent=self)
+            return
+        from llamabridge.presets import auto_optimize, detect_preset
+        # 先确保官方预设已套用（未识别家族时不动采样参数）
+        preset, _ = detect_preset(path)
+        if preset:
+            self._apply_to_form({k: preset[k] for k in
+                                 ("temperature", "top_p", "top_k", "jinja",
+                                  "reasoning", "reasoning_budget") if preset.get(k) is not None})
+        cur = {
+            "model_path": path,
+            "mmproj_path": self.ent_mmproj.get().strip(),
+        }
+        rec, note = auto_optimize(cur)
+        self._apply_to_form(rec)
+        self.var_hint.set(note + "。可保存使用了！")
+        if not note:
+            messagebox.showinfo("智能优化", "优化完成", parent=self)
 
     def _browse(self, entry, ftypes):
         p = filedialog.askopenfilename(filetypes=ftypes + [("所有文件", "*.*")])
         if p:
             entry.delete(0, "end")
             entry.insert(0, p)
-            if entry is self.ent_model and not self.ent_id.get():
-                base = os.path.splitext(os.path.basename(p))[0]
-                self.ent_id.insert(0, base)
+            if entry is self.ent_model:
+                if not self.ent_id.get():
+                    base = os.path.splitext(os.path.basename(p))[0]
+                    self.ent_id.insert(0, base)
+                # 新增模型：选完文件立即套用官方预设（编辑已有模型不覆盖）
+                if self._is_new:
+                    self._auto_preset()
 
     def _save(self):
         mid = self.ent_id.get().strip()

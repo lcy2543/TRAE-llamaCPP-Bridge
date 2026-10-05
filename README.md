@@ -88,6 +88,16 @@ python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bri
 
 ### 图形界面详细操作说明
 
+**新手一键配置**：添加模型时选择 GGUF 文件后，程序会**自动识别模型家族**（Qwen3/Gemma 4/DeepSeek/Llama/GLM/Mistral）并按官方文档填好全部推荐参数；再点 **「按显存智能优化」** 按钮，程序会检测你的显卡显存，自动计算最合适的上下文长度、GPU 卸载层数和 KV 缓存量化（权重放不下时自动分配部分层进内存）。全程无需手动调参。
+
+**官方预设来源**：
+
+| 模型家族 | 官方推荐参数 |
+|---|---|
+| Gemma 4 | temp=1.0 / top_p=0.95 / top_k=64（Google 模型卡片），`--jinja` 必开 |
+| Qwen3.x | temp=0.6 / top_p=0.95 / top_k=20（思考模式，禁止贪心解码），思考预算 ≥1024 |
+| DeepSeek / Llama / GLM / Mistral | 各官方文档推荐值 |
+
 | 界面元素 | 作用 |
 |---|---|
 | **启动 / 切换模型** 按钮 | 加载列表中选中的模型；若其他模型正在运行会先卸载再加载新模型 |
@@ -128,7 +138,8 @@ chmod +x start-linux.sh
 ./start-linux.sh                 # 前台运行代理（Ctrl+C 退出并停止模型）
 
 # 或使用完整命令：
-python3 cli_app.py add qwen3.6-35b -m /models/qwen.gguf --mmproj /models/mmproj.gguf -c 8192 --no-think --default
+python3 cli_app.py add qwen3.6-35b -m /models/qwen.gguf --mmproj /models/mmproj.gguf --auto --default
+# ↑ 官方预设自动套用 + 按显存智能优化（--no-preset 可关闭预设）
 python3 cli_app.py list          # 查看已配置模型
 python3 cli_app.py serve         # 前台运行代理（首次请求自动加载默认模型）
 python3 cli_app.py serve --model qwen3.6-35b   # 启动时预加载指定模型
@@ -339,6 +350,8 @@ python -m PyInstaller --noconfirm --onefile --noconsole --name TRAE-llamaCPP-Bri
 
 ### GUI Reference
 
+**One-click setup for beginners**: when adding a model, simply select the GGUF file — the app **auto-detects the model family** (Qwen3 / Gemma 4 / DeepSeek / Llama / GLM / Mistral) and fills in all officially recommended parameters. Then click **"Smart Optimize for VRAM"** to detect your GPU and automatically compute the best context size, GPU offload layers, and KV cache quantization (with automatic partial CPU offload when weights don't fit). No manual tuning needed.
+
 | UI element | Purpose |
 |---|---|
 | **Start / Switch Model** | Loads the selected model; if another model is running it is unloaded first |
@@ -392,7 +405,7 @@ python3 cli_app.py set --llama-server /path/to/llama-server --proxy-port 8800 ..
 
 ### CLI Reference
 
-**`add` — add/update a model** (an existing ID is overwritten):
+**`add` — add/update a model** (an existing ID is overwritten). Official preset parameters are applied automatically by detecting the model family from the filename; add `--auto` for VRAM-based optimization, or `--no-preset` to disable presets:
 
 ```bash
 python3 cli_app.py add <model-id> -m <main.gguf> [options]
@@ -401,6 +414,8 @@ python3 cli_app.py add <model-id> -m <main.gguf> [options]
 | Option | Description |
 |---|---|
 | `-m / --model` | Path to the main GGUF (required) |
+| `--auto` | VRAM smart optimization: auto-adjusts ctx/ngl/KV cache quantization based on your GPU |
+| `--no-preset` | Do not auto-apply official preset parameters |
 | `--mmproj <path>` | Multimodal mmproj file, enables image input |
 | `-c / --ctx <N>` | Context size, default 8192 |
 | `-ngl / --ngl <N>` | GPU offload layers, default 999 (all in VRAM) |
