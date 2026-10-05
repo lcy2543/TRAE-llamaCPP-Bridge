@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from llamabridge.config import Config
 from llamabridge.manager import ModelManager
-from llamabridge.server import BridgeServer
+from llamabridge.server import BridgeServer, get_lan_ip
 
 
 class App:
@@ -197,7 +197,7 @@ class App:
             backend = "后端未运行"
         self.var_status.set(
             f"代理端口 {port}: {proxy}   |   {backend}   |   "
-            f"TRAE API 地址: http://127.0.0.1:{port}/v1")
+            f"TRAE API 地址: http://{get_lan_ip()}:{port}/v1")
         self.root.after(2000, self._status_tick)
 
     def start_model(self):
@@ -272,6 +272,7 @@ class TraeConfigDialog(tk.Toplevel):
         self.grab_set()
         port = cfg.global_["proxy_port"]
         default = cfg.global_.get("default_model") or ""
+        host = get_lan_ip()
 
         frm = ttk.Frame(self, padding=14)
         frm.pack(fill="both", expand=True)
@@ -281,8 +282,8 @@ class TraeConfigDialog(tk.Toplevel):
 
         rows = [
             ("API 格式", "OpenAI Chat Completions 格式", True),
-            ("自定义请求地址", f"http://127.0.0.1:{port}/v1", False),
-            ("（完整URL开启时用）", f"http://127.0.0.1:{port}/v1/chat/completions", False),
+            ("自定义请求地址", f"http://{host}:{port}/v1", False),
+            ("（完整URL开启时用）", f"http://{host}:{port}/v1/chat/completions", False),
             ("模型 ID", default or "（请先在本程序添加模型）", False),
             ("API 密钥", "sk-local", False),
         ]
@@ -307,11 +308,16 @@ class TraeConfigDialog(tk.Toplevel):
         ttk.Button(frm, text="一键复制全部（含换行，逐行粘贴）",
                    command=self._copy_all).grid(row=7, column=0, columnspan=3,
                                                 sticky="we", pady=(0, 6))
+        ttk.Label(frm, foreground="#c33", justify="left", text=(
+            "注意：新版 TRAE 不允许 127.0.0.1/localhost，请使用上面自动填写的\n"
+            "本机局域网 IP 地址（代理已监听全部网卡）。\n"
+            "若 IP 变化（如切换 Wi-Fi），请重新打开本对话框获取新地址。")).grid(
+            row=8, column=0, columnspan=3, sticky="w")
         ttk.Label(frm, foreground="#666", justify="left", text=(
             "说明：「完整 URL」开关保持关闭即可；模型展示名称随意；\n"
             "点击 TRAE「添加模型」会做一次连通性测试（消耗少量 token）。\n"
             "切换本地模型只需在本程序操作，TRAE 无需改动。")).grid(
-            row=8, column=0, columnspan=3, sticky="w")
+            row=9, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
         self.bind("<Escape>", lambda e: self.destroy())
 

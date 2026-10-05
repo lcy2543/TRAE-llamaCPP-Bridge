@@ -10,6 +10,7 @@
 
 import json
 import re
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
@@ -18,6 +19,19 @@ import requests
 
 from .config import Config, resolve_model_id
 from .manager import ModelManager
+
+
+def get_lan_ip() -> str:
+    """获取本机局域网 IP（不发真实流量，仅用于选路）"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 # 思考标签（用拼接方式构造，避免源码中出现特殊标签字面量）
 THINK_OPEN = "<" + "think" + ">"
@@ -48,8 +62,10 @@ class BridgeServer:
         class Handler(BridgeHandler):
             bridge = self
 
+        # 监听 0.0.0.0：新版 TRAE 拒绝 127.0.0.1 回环地址，
+        # 需用本机局域网 IP（如 192.168.x.x）访问
         try:
-            self.httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+            self.httpd = ThreadingHTTPServer(("0.0.0.0", port), Handler)
         except OSError as e:
             self.log(f"[代理] 端口 {port} 启动失败: {e}")
             self.httpd = None
@@ -57,7 +73,11 @@ class BridgeServer:
         self.httpd.daemon_threads = True
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
-        self.log(f"[代理] OpenAI 兼容接口已就绪: http://127.0.0.1:{port}/v1")
+        lan = get_lan_ip()
+        self.log(f"[代理] OpenAI 兼容接口已就绪: http://{lan}:{port}/v1")
+        if lan != "127.0.0.1":
+            self.log(f"[代理] TRAE 请填写局域网地址（新版 TRAE 不允许 127.0.0.1）: "
+                     f"http://{lan}:{port}/v1")
         return True
 
     def stop(self):

@@ -118,13 +118,16 @@ def cmd_set(cfg: Config, a):
 
 
 def cmd_serve(cfg: Config, a):
+    from llamabridge.server import get_lan_ip
     mgr = ModelManager(cfg)
     bridge = BridgeServer(cfg, mgr)
     if not bridge.start():
         sys.exit(1)
     exe = cfg.find_llama_server()
+    host = get_lan_ip()
     print(f"llama-server: {exe or '未找到（请用 set --llama-server 指定）'}")
-    print(f"TRAE 设置 → API 地址: http://127.0.0.1:{cfg.global_['proxy_port']}/v1")
+    print(f"TRAE 设置 → API 地址: http://{host}:{cfg.global_['proxy_port']}/v1")
+    print(f"（新版 TRAE 不允许 127.0.0.1，请使用上面的局域网 IP）")
     for m in cfg.models:
         print(f"  模型 ID 可填: {m['id']}")
 
@@ -200,15 +203,18 @@ def main():
         except Exception as e:
             print(f"停止失败: {e}")
     elif a.cmd == "trae":
+        from llamabridge.server import get_lan_ip
         port = cfg.global_["proxy_port"]
         default = cfg.global_.get("default_model") or "(未设置默认模型)"
-        url = f"http://127.0.0.1:{port}/v1"
+        host = get_lan_ip()
+        url = f"http://{host}:{port}/v1"
         print("在 TRAE 中：设置 → 模型 → 添加模型，填写以下参数：\n")
         print(f"  API 格式        OpenAI Chat Completions 格式")
         print(f"  自定义请求地址  {url}")
         print(f"  模型 ID         {default}")
         print(f"  API 密钥        sk-local (任意)")
-        print(f"\n  若开启「完整 URL」开关，请求地址改为: {url}/chat/completions")
+        print(f"\n  注意：新版 TRAE 不允许 127.0.0.1/localhost，请使用上面的局域网 IP")
+        print(f"  若开启「完整 URL」开关，请求地址改为: {url}/chat/completions")
         if getattr(a, "copy", False):
             try:
                 import subprocess
