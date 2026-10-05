@@ -14,6 +14,9 @@ dist/data/
 # 模型文件（自行下载）
 *.gguf
 
+# 根目录 exe 副本（正式交付在 dist/ 中）
+/TRAE-llamaCPP-Bridge.exe
+
 # IDE / 系统
 .vs/
 .vscode/
